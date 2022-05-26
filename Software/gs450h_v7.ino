@@ -3,18 +3,18 @@
  * Feedback provided over USB serial
  * V3 Reverse added
  * V4 CAN specific to BMW E65 735i project
- * 
+ *
  *  V5  WiFi connection on USART2 at 19200 baud
- * 
- * V6 - add ISA CAN shunt connectivity. Note V2 hardware only. 
- * 
- * 
+ *
+ * V6 - add ISA CAN shunt connectivity. Note V2 hardware only.
+ *
+ *
  * V7 - add HV precharge and control- oil pump relay=midpack and precharge contactor, out1= main contactor.
- * 
+ *
  * Copyright 2019 T.Darby , D.Maguire
  * openinverter.org
  * evbmw.com
- * 
+ *
  */
 
 
@@ -78,28 +78,57 @@ byte get_gear()
   }
   else
   {
-  return(REVERSE); 
+  return(REVERSE);
   }
 }
 */
 
 
 
-Metro timer_htm=Metro(10); 
+Metro timer_htm=Metro(10);
 Metro timer_diag = Metro(1100);
 Metro timer_Frames200 = Metro(200);
 Metro timer_Frames10 = Metro(10);
 
-byte mth_data[100];
-byte htm_data_setup[80]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,4,0,25,0,0,0,0,0,0,0,128,0,0,0,128,0,0,0,37,1};
-byte htm_data[80]={0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,0,255,0,0,0,0,0,0,0,0,0}; 
+byte mth_data[120];
+byte htm_data_setup[100]=/*{0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,4,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,4,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          4,0,25,0,0,0,0,0,0,0,
+                          128,0,0,0,128,0,0,0,37,1};*/
+                         {0,30,0,0,0,0,0,55,0,126,
+                         255,0,0,0,0,97,4,0,0,0,
+                         0,0,0,0,0,0,0,0,0,0,
+                         0,0,49,0,0,0,0,0,0,0,
+                         0,4,0,0,0,0,0,0,0,0,
+                         0,0,0,0,0,0,0,0,0,0,
+                         0,0,0,0,0,0,0,4,0,0,
+                         0,0,0,4,75,25,60,246,52,8,
+                         0,0,0,0,0,0,137,0,0,0,
+                         168,0,0,0,2,0,0,0,121,5};
 
-unsigned short htm_checksum=0, 
-               mth_checksum=0, 
+
+ byte htm_data[100]={     0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          255,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0,
+                          0,0,0,0,0,0,0,0,0,0};
+
+
+unsigned short htm_checksum=0,
+               mth_checksum=0,
                since_last_packet=4000;
 
 unsigned long  last_packet=0;
-            
+
 volatile byte mth_byte=0;
 
 float dc_bus_voltage=0,temp_inv_water=0,temp_inv_inductor=0; //just used for diagnostic output
@@ -108,11 +137,11 @@ short mg1_torque=0,
       mg2_torque=0,
       mg1_speed=-1,
       mg2_speed=-1;
-       
+
 byte inv_status=1;
      //gear=get_gear(); //get this from your transmission
-     
-bool htm_sent=0, 
+
+bool htm_sent=0,
      mth_good=0;
 
 int oil_power=135; //oil pump pwm value
@@ -123,7 +152,7 @@ int ThrotVal=0; //value read from throttle pedal analog input
 bool T15Status; //flag to keep status of Terminal 15 from CAS via CAN.
 bool dash_status; //flag for dash on can command.
 bool can_status;  //flag for turning off and on can sending.
-     
+
 
 short get_torque()
 {
@@ -138,7 +167,7 @@ short get_torque()
 }
 
 
-ISA Sensor;  //Instantiate ISA Module Sensor object to measure current and voltage 
+ISA Sensor;  //Instantiate ISA Module Sensor object to measure current and voltage
 
 #define SerialDEBUG SerialUSB
 
@@ -150,7 +179,7 @@ void setup() {
    Can1.attachCANInterrupt(Incoming); //
 
     Sensor.begin(0,500);  //Start ISA object on CAN 0 at 500 kbps
-   
+
 //   Timer4.attachInterrupt(Frames10MS).start(10000); // Send frames every 10ms
 //   Timer3.attachInterrupt(Frames200MS).start(200000); // Send frames every 200ms
  //set initial conditions/////////////////
@@ -161,7 +190,7 @@ void setup() {
     Gcount=0x0d;
     gear=NEUTRAL;
     shiftPos=0xb4; //select neutral
-//////////////////////////////////////////////   
+//////////////////////////////////////////////
   pinMode(pin_inv_req, OUTPUT);
   digitalWrite(pin_inv_req, 1);
   pinMode(13, OUTPUT);  //led
@@ -169,7 +198,7 @@ void setup() {
   digitalWrite(OilPumpPower,LOW);  //turn off precharge
    //analogWrite(OilPumpPWM,125);  //set 50% pwm to oil pump at 1khz for testing
 
-  pinMode(InvPower, OUTPUT);  //Inverter Relay 
+  pinMode(InvPower, OUTPUT);  //Inverter Relay
   pinMode(Out1, OUTPUT);  //GP output one
   pinMode(TransSL1,OUTPUT); //Trans solenoids
   pinMode(TransSL2,OUTPUT); //Trans solenoids
@@ -189,18 +218,19 @@ void setup() {
   pinMode(TransPB2,INPUT); //Trans inputs
   pinMode(TransPB3,INPUT); //Trans inputs
 
-  Serial1.begin(250000);
+  Serial1.begin(250000); // 500k comes out. Not sure how USCLKS affects it as this should div8
 
   PIOA->PIO_ABSR |= 1<<17;
   PIOA->PIO_PDR |= 1<<17;
-  USART0->US_MR |= 1<<4 | 1<<8 | 1<<18;
+  USART0->US_MR |= 1<<4 | 1<<8 | 1<<18;   //  4:USCLKS | 8:SYNC | 18:CLKO(utput)
+//  PIOA->PIO_PDR = 1<<10; //why is this still enabled?
 
-  htm_data[63]=(-5000)&0xFF;  // regen ability of battery
-  htm_data[64]=((-5000)>>8);
+  htm_data[76]=(-5000)&0xFF; //was63 // regen ability of battery
+  htm_data[77]=((-5000)>>8); //was64
 
-  htm_data[65]=(27500)&0xFF;  // discharge ability of battery
-  htm_data[66]=((27500)>>8);
- 
+  htm_data[78]=(27500)&0xFF; //was65  // discharge ability of battery
+  htm_data[79]=((27500)>>8); //was66
+
   SerialDEBUG.begin(115200);
   SerialDEBUG.print("hello world!");
 
@@ -219,22 +249,22 @@ digitalWrite(OilPumpPower,HIGH);  //turn on hv precharge and pack split contacto
 {
 digitalWrite(Out1,HIGH);  //turn on hv main once precharge complete
 }
-  
+
   }
-  
+
 }
 
 void HV_Off()
 {
 digitalWrite(Out1,LOW);  //turn of hv main contactor
 digitalWrite(OilPumpPower,LOW);  //turn of hv precharge and pack split contactors
- 
+
 }
 
 
 void handle_wifi(){
 /*
- * 
+ *
  * Routine to send data to wifi on serial 2
 The information will be provided over serial to the esp8266 at 19200 baud 8n1 in the form :
 vxxx,ixxx,pxxx,mxxxx,nxxxx,oxxx,rxxx,qxxx* where :
@@ -253,7 +283,7 @@ updates will be every 100ms approx.
 
 v100,i200,p35,m3000,n4000,o20,r100,q50*
 */
-  
+
 //Serial2.print("v100,i200,p35,m3000,n4000,o20,r30,q50*"); //test string
 
 //digitalWrite(13,!digitalRead(13));//blink led every time we fire this interrrupt.
@@ -291,11 +321,11 @@ void control_inverter() {
   {
     if(mth_good)
     {
-      dc_bus_voltage=(((mth_data[82]|mth_data[83]<<8)-5)/2);
+      dc_bus_voltage=(((mth_data[103]|mth_data[104]<<8)-5)/2); //was82,83
       temp_inv_water=(mth_data[42]|mth_data[43]<<8);
       temp_inv_inductor=(mth_data[86]|mth_data[87]<<8);
-      mg1_speed=mth_data[6]|mth_data[7]<<8;
-      mg2_speed=mth_data[31]|mth_data[32]<<8;
+      mg1_speed=mth_data[11]|mth_data[12]<<8; //was 6,7
+      mg2_speed=mth_data[39]|mth_data[40]<<8; //was31,32
     }
     //gear=get_gear();
     mg2_torque=get_torque(); // -3500 (reverse) to 3500 (forward)
@@ -306,54 +336,56 @@ void control_inverter() {
     //speed feedback
     speedSum=mg2_speed+mg1_speed;
     speedSum/=113;
+//    speedSum = (mg1_speed + mg2_speed //Engine speed = (MG1+MG2*143/145)*5/18
+
     htm_data[0]=(byte)speedSum;
-    htm_data[75]=(mg1_torque*4)&0xFF;
-    htm_data[76]=((mg1_torque*4)>>8);
-    
+    htm_data[91]=(mg1_torque*4)&0xFF; //was75
+    htm_data[92]=((mg1_torque*4)>>8); //was76
+
     //mg1
-    htm_data[5]=(mg1_torque*-1)&0xFF;  //negative is forward
-    htm_data[6]=((mg1_torque*-1)>>8);
-    htm_data[11]=htm_data[5];
-    htm_data[12]=htm_data[6];
+    htm_data[5]=(mg1_torque*-1)&0xFF;  //was5 //negative is forward
+    htm_data[6]=((mg1_torque*-1)>>8);  //was6
+    htm_data[11]=htm_data[5];          //was11
+    htm_data[12]=htm_data[6];          //was12
 
     //mg2
-    htm_data[26]=(mg2_torque)&0xFF; //positive is forward
-    htm_data[27]=((mg2_torque)>>8);
-    htm_data[32]=htm_data[26];
-    htm_data[33]=htm_data[27];
+    htm_data[36]=(mg2_torque)&0xFF; //was26//positive is forward
+    htm_data[37]=((mg2_torque)>>8); //was27
+    htm_data[30]=htm_data[36];      //was32
+    htm_data[31]=htm_data[37];      //was33
 
     //checksum
     htm_checksum=0;
-    for(byte i=0;i<78;i++)htm_checksum+=htm_data[i];
-    htm_data[78]=htm_checksum&0xFF;
-    htm_data[79]=htm_checksum>>8;
+    for(byte i=0;i<98;i++)htm_checksum+=htm_data[i];
+    htm_data[98]=htm_checksum&0xFF;
+    htm_data[99]=htm_checksum>>8;
   }
-  
+
   since_last_packet=micros()-last_packet;
 
   if(since_last_packet>=4000) //read mth
-  {    
+  {
     htm_sent=0;
     mth_byte=0;
     mth_checksum=0;
-    
-    for(int i=0;i<100;i++)mth_data[i]=0;
+
+    for(int i=0;i<120;i++)mth_data[i]=0;
     while(Serial1.available()){mth_data[mth_byte]=Serial1.read();mth_byte++;}
-    
-    for(int i=0;i<98;i++)mth_checksum+=mth_data[i];
-    if(mth_checksum==(mth_data[98]|(mth_data[99]<<8)))mth_good=1;else mth_good=0;
+
+    for(int i=0;i<118;i++)mth_checksum+=mth_data[i];
+    if(mth_checksum==(mth_data[118]|(mth_data[119]<<8)))mth_good=1;else mth_good=0;
     last_packet=micros();
     digitalWrite(pin_inv_req,0);
   }
 
   since_last_packet=micros()-last_packet;
-  
+
   if(since_last_packet>=10)digitalWrite(pin_inv_req,1);
 
   if(since_last_packet>=1000)
   {
-    if(!htm_sent&&inv_status==0){for(int i=0;i<80;i++)Serial1.write(htm_data[i]);}
-    else if(!htm_sent&&inv_status!=0){for(int i=0;i<80;i++)Serial1.write(htm_data_setup[i]);if(mth_data[1]!=0) inv_status--;}
+    if(!htm_sent&&inv_status==0){for(int i=0;i<100;i++)Serial1.write(htm_data[i]);}
+    else if(!htm_sent&&inv_status!=0){for(int i=0;i<100;i++)Serial1.write(htm_data_setup[i]);if(mth_data[1]!=0) inv_status--;}
     htm_sent=1;
   }
 }
@@ -364,24 +396,37 @@ void control_inverter() {
 void diag_mth()
 {
   ///mask just hides any MTH data byte which is represented here with a 0. Useful for debug/discovering.
-  bool mth_mask[100] = {
-    0,0,0,0,0,0,0,0,1,1,
-    1,1,0,0,1,1,1,1,1,1,
+  bool mth_mask[120] = {
     1,1,1,1,1,1,1,1,1,1,
-    1,0,0,1,1,1,1,0,0,1,
-    1,1,0,0,1,1,1,1,1,1,
-    1,1,1,1,1,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,
-    0,0,0,0,0,0,0,0,0,0,
-    1,1,0,0,1,1,0,0,1,1,
-    1,1,1,1,1,1,1,1,0,0,};
-    
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,
+    1,1,1,1,1,1,1,1,1,1,};
+
   SerialDEBUG.print("\n");
   SerialDEBUG.println("\t0\t1\t2\t3\t4\t5\t6\t7\t8\t9");
-  SerialDEBUG.println("   ------------------------------------------------------------------------------");  
-  for (int j=0;j<10;j++)
+  SerialDEBUG.print(PIOA->PIO_PSR,HEX);
+  SerialDEBUG.print(" ");
+  SerialDEBUG.print(PIOB->PIO_PSR,HEX);
+  SerialDEBUG.print("\n");
+  SerialDEBUG.print(PIOA->PIO_ABSR,HEX);
+  SerialDEBUG.print(" ");
+  SerialDEBUG.print(PIOB->PIO_ABSR,HEX);
+  SerialDEBUG.print("\n");
+  SerialDEBUG.println("   ------------------------------------------------------------------------------");
+  for (int j=0;j<12;j++)
   {
-    SerialDEBUG.print(j*10);if(j==0)SerialDEBUG.print("0");SerialDEBUG.print(" |\t");
+    if(j<10)SerialDEBUG.print(" ");
+    if(j==0)SerialDEBUG.print(" ");
+    SerialDEBUG.print(j*10);
+    SerialDEBUG.print(" |\t");
     for (int k=0;k<10;k++)
     {
       if(mth_mask[j*10+k])SerialDEBUG.print(mth_data[j*10+k]);else SerialDEBUG.print (" ");
@@ -390,27 +435,27 @@ void diag_mth()
     SerialDEBUG.print("\n");
   }
   SerialDEBUG.print("\n");
-    
+
   SerialDEBUG.print("MTH Valid: ");if(mth_good)SerialDEBUG.print("Yes"); else SerialDEBUG.print("No");SerialDEBUG.print("\tChecksum: ");SerialDEBUG.print(mth_checksum);
   SerialDEBUG.print("\n");
-  
+
   SerialDEBUG.print("DC Bus: ");if(dc_bus_voltage>=0)SerialDEBUG.print(dc_bus_voltage);else SerialDEBUG.print("----");
   SerialDEBUG.print("v\n");
- 
+
   SerialDEBUG.print("MG1 - Speed: ");SerialDEBUG.print(mg1_speed);
   SerialDEBUG.print("rpm\tPosition: ");SerialDEBUG.print(mth_data[12]|mth_data[13]<<8);
   SerialDEBUG.print("\n");
-  
+
   SerialDEBUG.print("MG2 - Speed: ");SerialDEBUG.print(mg2_speed);
   SerialDEBUG.print("rpm\tPosition: ");SerialDEBUG.print(mth_data[37]|mth_data[38]<<8);
   SerialDEBUG.print("\n");
-  
+
   SerialDEBUG.print("Water Temp:\t");SerialDEBUG.print(temp_inv_water);
   SerialDEBUG.print("c\nInductor Temp:\t" );SerialDEBUG.print(temp_inv_inductor);
   SerialDEBUG.print("c\nAnother Temp:\t");SerialDEBUG.print(mth_data[88]|mth_data[89]<<8);
   SerialDEBUG.print("c\nAnother Temp:\t");SerialDEBUG.print(mth_data[41]|mth_data[40]<<8);
   SerialDEBUG.print("c\n");
-  
+
   SerialDEBUG.print("\n");
   SerialDEBUG.print("\n");
   SerialDEBUG.print("\n");
@@ -431,15 +476,15 @@ void diag_mth()
 void Incoming (CAN_FRAME *frame){
 
     ///////////Message from CAS on 0x130 byte one for Terminal 15 wakeup
-  
+
       if(frame->id==0x130)
       {
         if(frame->data.byte[0] == 0x45) T15Status=true; //if the cas sends 0x45 in byte 0 of id 0x130 we have a run command
         else T15Status=false;
       }
-      
-      
- ////////////////////////////////////////////////////////////////////////////////////////////////////////////////     
+
+
+ ////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
   //////////////////////Decode gear selector , update inverter and display back onto cluster in car.
       if(frame->id==0x192)
@@ -449,7 +494,7 @@ void Incoming (CAN_FRAME *frame){
      // Serial.println(GLeaver,HEX);
     switch (GLeaver) {
       case 0x80006a:  //not pressed
-        
+
         break;
       case 0x80506a:  //park button pressed
       gear=PARK;
@@ -472,25 +517,25 @@ void Incoming (CAN_FRAME *frame){
             shiftPos=0xb4; //select Neutral on overpress.
         break;
       case 0x81006a:  //Left Back button pressed
- 
+
         break;
       case 0x82006a:  //Left Front button pressed
- 
+
         break;
       case 0x84006a:  //right Back button pressed
- 
+
         break;
 
       case 0x88006a:  //right Front button pressed
- 
+
         break;
 
       case 0xa0006a:  //  S-M-D button pressed
- 
-        break;        
+
+        break;
       default:
       {
-        
+
       }
       }
       }
@@ -504,16 +549,16 @@ void DashOn(){
         outframe.extended = 0;          // standard id
         outframe.rtr=1;                 //No request
         outframe.data.bytes[0]=0x61;  //sets max rpm on tach (temp thing)
-        outframe.data.bytes[1]=0x82;  
+        outframe.data.bytes[1]=0x82;
         Can1.sendFrame(outframe);
-  
-    
+
+
 }
 ////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
 
-    
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 
@@ -523,7 +568,7 @@ void Frames10MS()
 {
   if(timer_Frames10.check())
   {
-   
+
    if(can_status)
    {
 
@@ -535,7 +580,7 @@ void Frames10MS()
   {
     RPM=750;
   }
-    
+
         word RPM_A;// rpm value for E65
         RPM_A=RPM*4;
         outframe.id = 0x0AA;            // Set our transmission address ID
@@ -543,20 +588,20 @@ void Frames10MS()
         outframe.extended = 0;          // Extended addresses - 0=11-bit 1=29bit
         outframe.rtr=1;                 //No request
         outframe.data.bytes[0]=0x5f;
-        outframe.data.bytes[1]=0x59;  
+        outframe.data.bytes[1]=0x59;
         outframe.data.bytes[2]=0xff;
         outframe.data.bytes[3]=0x00;
         outframe.data.bytes[4]=lowByte(RPM_A);
         outframe.data.bytes[5]=highByte(RPM_A);
         outframe.data.bytes[6]=0x80;
         outframe.data.bytes[7]=0x99;
-       
 
 
-        Can1.sendFrame(outframe); 
+
+        Can1.sendFrame(outframe);
 
    }
-  }    
+  }
 }
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -576,7 +621,7 @@ digitalWrite(13,!digitalRead(13));//blink led every time we fire this interrrupt
         outframe.extended = 0;          // Extended addresses - 0=11-bit 1=29bit
         outframe.rtr=1;                 //No request
         outframe.data.bytes[0]=shiftPos;  //e1=P  78=D  d2=R  b4=N
-        outframe.data.bytes[1]=0x0c;  
+        outframe.data.bytes[1]=0x0c;
         outframe.data.bytes[2]=0x8f;
         outframe.data.bytes[3]=Gcount;
         outframe.data.bytes[4]=0xf0;
@@ -590,7 +635,7 @@ digitalWrite(13,!digitalRead(13));//blink led every time we fire this interrrupt
          {
           Gcount=0x0D;
          }
-         
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////////////
   }
   }
@@ -622,9 +667,9 @@ void loop() {
     can_status=false;
     digitalWrite(InvPower,LOW);  //turn off inverter, oil pump and pas pump
 
-      
+
     }
-  
+
   control_inverter();
   Frames10MS();
   Frames200MS();
@@ -633,7 +678,7 @@ void loop() {
   diag_mth();
   handle_wifi();
   HV_On(); //check if we need hv
-  
+
 // SerialDEBUG.println(ThrotVal);
  //  SerialDEBUG.println(gear);
  // digitalWrite(13,!digitalRead(13));
